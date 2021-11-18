@@ -2,9 +2,24 @@ from tabulate import tabulate
 import random
 import time
 import serial
+from pyftdi.ftdi import Ftdi
+from pyftdi import i2c
+import time
 
-ser = serial.Serial('COM4', baudrate=38400, bytesize=serial.EIGHTBITS, parity=serial.PARITY_EVEN,
-                    stopbits=serial.STOPBITS_ONE, timeout=3)  # open serial port
+cltr = i2c.I2cController()
+cltr.configure('ftdi://ftdi:232h:1/1')
+resp = cltr.get_port(0x4D)
+
+time.sleep(.10)
+
+#Initializing Chip
+resp.write(b'\x08\x00')   #IER
+resp.write(b'\x10\x27')   #FIFO Control   00100111
+resp.write(b'\x18\x9B')   #LCR    10011011
+#resp.write(b'\x08\x00')   #EFCR
+resp.write(b'\x00\x03')   #DLL
+resp.write(b'\x08\x00')   #DLM
+resp.write(b'\x18\x1B')   #LCR    00011011
 
 class serialInterface():
     def menu(self):
@@ -178,16 +193,17 @@ class serialInterface():
         time.sleep(2)
 
     def readsixVariables(self):
-        request_hexstring = '024852540346330D'
+        request_hexstring = '00024852540346330D'
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = str(ser.read(32))
-        deltaPrimeT1_val = response_ascii_string[9:13]
-        deltaPrimeT2_val = response_ascii_string[13:17]
-        deltaT1_val = response_ascii_string[17:21]
-        deltaT2_val = response_ascii_string[21:25]
-        Vb_val = response_ascii_string[25:29]
-        Tb_val = response_ascii_string[29:33]
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = str(resp.read(64))
+        deltaPrimeT1_val = response_ascii_string[19:23]
+        deltaPrimeT2_val = response_ascii_string[23:27]
+        deltaT1_val = response_ascii_string[27:31]
+        deltaT2_val = response_ascii_string[31:35]
+        Vb_val = response_ascii_string[35:39]
+        Tb_val = response_ascii_string[39:43]
 
         deltaPrimeT1_dec = int(deltaPrimeT1_val, 16)
         deltaPrimeT1 = round(deltaPrimeT1_dec * 1.507 * 10 ** -3, 2)
@@ -218,14 +234,15 @@ class serialInterface():
         time.sleep(2)
 
     def getmonitorinfoStatus(self):
-        request_hexstring = '0248504F0345430D'
+        request_hexstring = '000248504F0345430D'
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(request_hexstring)
-        response_ascii_string = str(ser.read(32))
-        status_val = response_ascii_string[9:13]
-        output_voltage_val = response_ascii_string[17:21]
-        output_current_val = response_ascii_string[21:25]
-        MPPC_temp_val = response_ascii_string[25:29]
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = str(resp.read(64))
+        status_val = response_ascii_string[19:23]
+        output_voltage_val = response_ascii_string[27:31]
+        output_current_val = response_ascii_string[31:35]
+        MPPC_temp_val = response_ascii_string[35:39]
 
         status_bin = bin(int(status_val, 16))[2:]
 
@@ -249,11 +266,12 @@ class serialInterface():
 
 
     def getStatus(self):
-        request_hexstring = '024847530345370D'
+        request_hexstring = '00024847530345370D'
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = str(ser.read(12))
-        output_status_hex = response_ascii_string[9:13]
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = str(resp.read(64))
+        output_status_hex = response_ascii_string[19:23]
         status_bin = bin(int(output_status_hex, 16))[2:]
         print("\n" + status_bin)
 
@@ -323,57 +341,63 @@ class serialInterface():
         time.sleep(2)
 
     def voltageOut(self):
-        request_hexstring = '024847560345410D'  #h02 h48 h47 h56 h03 h45 h41 h0D
+        request_hexstring = '00024847560345410D'  #h00 h02 h48 h47 h56 h03 h45 h41 h0D
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = ser.read(12)
-        output_voltage_hex = str(response_ascii_string)[9:13]
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = resp.read(64)
+        output_voltage_hex = str(response_ascii_string)[19:23]
         output_voltage = round(int(output_voltage_hex, 16) * 1.812 * 10 ** -3, 2)
         print(str(output_voltage) + "V")
         time.sleep(2)
 
 
     def currentOut(self):
-        request_hexstring = '024847430344370D'  # h02 h48 h47 h43 h03 h44 h37 h0D
+        request_hexstring = '00024847430344370D'  # h02 h48 h47 h43 h03 h44 h37 h0D
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = ser.read(12)
-        output_current_hex = str(response_ascii_string)[9:13]
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = resp.read(64)
+        output_current_hex = str(response_ascii_string)[19:23]
         output_current = round(int(output_current_hex, 16) * 4.980 * 10 ** -3, 2)
         print(str(output_current) + "mA")
         time.sleep(2)
 
     def MPPCOUT(self):
-        request_hexstring = '024847540345380D'  # h02 h48 h47 h54 h03 h45 h38 h0D
+        request_hexstring = '00024847540345380D'  # h02 h48 h47 h54 h03 h45 h38 h0D
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = ser.read(12)
-        output_MPPCtemp_hex = str(response_ascii_string)[9:13]
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = resp.read(64)
+        output_MPPCtemp_hex = str(response_ascii_string)[19:23]
         output_MPPCtemp = round((int(output_MPPCtemp_hex, 16) * 1.907 * 10 ** -5 - 1.035) / (-5.5 * 10 ** -3), 2)
         print(str(output_MPPCtemp) + "°C")
         time.sleep(2)
 
     def turnvoltageOFF(self):
-        request_hexstring = '02484F460345320D'  # h02 h48 h4F h46 h03 h45 h32 h0D
+        request_hexstring = '0002484F460345320D'  # h02 h48 h4F h46 h03 h45 h32 h0D
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = ser.read(12)
+        resp.write(bytestring)
+        response_ascii_string = resp.read(64)
         print(response_ascii_string)
         print("High Voltage Output is OFF")
+        time.sleep(2)
 
     def turnvoltageON(self):
-        request_hexstring = '02484F4E0345410D'  # h02 h48 h4F h4E h03 h45 h41 h0D
+        request_hexstring = '0002484F4E0345410D'  # h02 h48 h4F h4E h03 h45 h41 h0D
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = ser.read(12)
+        resp.write(bytestring)
+        response_ascii_string = resp.read(64)
         print(response_ascii_string)
         print("High Voltage Output is ON")
+        time.sleep(2)
 
     def resetPower(self):
-        request_hexstring = '024852450345340D'  # h02 h48 h52 h45 h03 h45 h34 h0D
+        request_hexstring = '00024852450345340D'  # h02 h48 h52 h45 h03 h45 h34 h0D
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = ser.read(12)
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = resp.read(64)
         print(response_ascii_string)
         print("The Power Will Reset")
 
@@ -412,10 +436,11 @@ class serialInterface():
             self.hexsum5 = hex(int(self.hexsum5, 16) + int(self.hexstring5[(len(self.hexstring5) - 2):], 16))
 
         data = [self.hexstring5, self.hexsum5]
-        request_hexstring = self.encode(request_com, data)
+        request_hexstring = '00' + self.encode(request_com, data)
         bytestring = bytearray.fromhex(request_hexstring)
-        ser.write(bytestring)
-        response_ascii_string = ser.read(8)
+        resp.write(bytestring)
+        resp.write(b'\x00')
+        response_ascii_string = resp.read(64)
         print(response_ascii_string)
         time.sleep(2)
 
